@@ -48,6 +48,8 @@
 #include "loam_velodyne/nanoflann_pcl.h"
 #include "math_utils.h"
 
+#include "loam.h"
+
 const float scanPeriod = 0.1;
 
 const int skipFrameNum = 1;
@@ -84,14 +86,14 @@ nanoflann::KdTreeFLANN<PointType> kdtreeSurfLast;
 int laserCloudCornerLastNum;
 int laserCloudSurfLastNum;
 
-int pointSelCornerInd[40000];
-float pointSearchCornerInd1[40000];
-float pointSearchCornerInd2[40000];
+int pointSelCornerInd[N_POINTS];
+float pointSearchCornerInd1[N_POINTS];
+float pointSearchCornerInd2[N_POINTS];
 
-int pointSelSurfInd[40000];
-float pointSearchSurfInd1[40000];
-float pointSearchSurfInd2[40000];
-float pointSearchSurfInd3[40000];
+int pointSelSurfInd[N_POINTS];
+float pointSearchSurfInd1[N_POINTS];
+float pointSearchSurfInd2[N_POINTS];
+float pointSearchSurfInd3[N_POINTS];
 
 Twist transform;
 Twist transformSum;
@@ -427,7 +429,7 @@ int main(int argc, char** argv)
         int cornerPointsSharpNum = cornerPointsSharp->points.size();
         int surfPointsFlatNum = surfPointsFlat->points.size();
 
-        for (int iterCount = 0; iterCount < 25; iterCount++) {
+        for (int iterCount = 0; iterCount < maxIterNum; iterCount++) {
           laserCloudOri->clear();
           coeffSel->clear();
 

@@ -44,6 +44,8 @@
 #include <tf/transform_broadcaster.h>
 #include "loam_velodyne/common.h"
 #include "math_utils.h"
+#include "loam.h"
+
 
 using std::sin;
 using std::cos;
@@ -55,16 +57,15 @@ const int systemDelay = 20;
 int systemInitCount = 0;
 bool systemInited = false;
 
-const int N_SCANS = 16;
 
-float cloudCurvature[40000];
-int cloudSortInd[40000];
-int cloudNeighborPicked[40000];
-int cloudLabel[40000];
+
+float cloudCurvature[N_POINTS];
+int cloudSortInd[N_POINTS];
+int cloudNeighborPicked[N_POINTS];
+int cloudLabel[N_POINTS];
 
 int imuPointerFront = 0;
 int imuPointerLast = -1;
-const int imuQueLength = 200;
 
 Angle imuRollStart, imuPitchStart, imuYawStart;
 Angle imuRollCur, imuPitchCur, imuYawCur;
@@ -174,7 +175,6 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
   float endOri = -atan2(laserCloudIn.points[cloudSize - 1].y,
                         laserCloudIn.points[cloudSize - 1].x) + 2 * M_PI;
 
-  ROS_DEBUG("laserCloudHandler: %f, %f", startOri, endOri);
 
   if (endOri - startOri > 3 * M_PI) {
     endOri -= 2 * M_PI;
@@ -185,31 +185,62 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
   int count = cloudSize;
   PointType point;
   std::vector<pcl::PointCloud<PointType> > laserCloudScans(N_SCANS);
+  std::vector<double> angleX(cloudSize);
+
+  for (int i = 0; i < cloudSize; i++) {
+    point.x = laserCloudIn.points[i].x;
+    point.y = laserCloudIn.points[i].y;
+    point.z = laserCloudIn.points[i].z;
+
+    angleX[i] = atan2(point.x, sqrt(point.y * point.y + point.z * point.z)) * 180 / M_PI;
+  }
 
 
+  ROS_DEBUG("SCAN: cloud = %d", count);
+  
 
-
+  int scanID(N_SCANS-1);
+  double ax0(0);
+  int maxIdx(0);
+  // y - vertical ????
   for (int i = 0; i < cloudSize; i++) {
     point.x = laserCloudIn.points[i].y;
     point.y = laserCloudIn.points[i].z;
     point.z = laserCloudIn.points[i].x;
 
-    float angle = atan(point.y / sqrt(point.x * point.x + point.z * point.z)) * 180 / M_PI;
-    int scanID;
-    angle = (angle+15) / 2; //VLP16 - 2 degrees per laser, -15:15
-    int roundedAngle = int(angle + 0.5); 
-    if (roundedAngle > 0){
-      scanID = roundedAngle;
-    }
+    double ax = angleX[i];
+    if (ax >= ax0) {
+      maxIdx = i;      
+    } 
     else {
-      scanID = roundedAngle + (N_SCANS - 1);
+      int beg = maxIdx - 10;
+      if (beg < 0) beg = 0;
+      int end = maxIdx + 10;
+      if ( end >= cloudSize) end = cloudSize;
+      for (int k = beg; k < end; ++k) {
+        if (angleX[k] > ax0) {
+          maxIdx = -1;
+          break;
+        }
+      }
+      if (maxIdx > 0) {
+        scanID--;
+        ROS_DEBUG("newScan %d at %d ( %f, %f, %f)", scanID, maxIdx, 
+                  point.z, point.x, point.y);
+      }
     }
-    if (scanID > (N_SCANS - 1) || scanID < 0 ){
+
+
+    ax0 = ax;
+
+    float angle = atan(point.y / sqrt(point.x * point.x + point.z * point.z)) * 180 / M_PI;
+
+
+    if (scanID < 0 ) {
       count--;
       continue;
     }
 
-    //ROS_DEBUG("angle: %d -> %d", roundedAngle, scanID);
 
     float ori = -atan2(point.x, point.z);
     if (!halfPassed) {
@@ -602,9 +633,9 @@ int main(int argc, char** argv)
   ros::NodeHandle nh;
 
   ros::Subscriber subLaserCloud = nh.subscribe<sensor_msgs::PointCloud2> 
-                                  ("/velodyne_points", 2, laserCloudHandler);
+                                  ("/kitti_player/hdl64e", 2, laserCloudHandler);
 
-  ros::Subscriber subImu = nh.subscribe<sensor_msgs::Imu> ("/imu/data", 50, imuHandler);
+  ros::Subscriber subImu = nh.subscribe<sensor_msgs::Imu> ("kitty_player/oxts/imu", 50, imuHandler);
 
   pubLaserCloud = nh.advertise<sensor_msgs::PointCloud2>
                                  ("/velodyne_cloud_2", 2);
