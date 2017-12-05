@@ -174,6 +174,8 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
   float endOri = -atan2(laserCloudIn.points[cloudSize - 1].y,
                         laserCloudIn.points[cloudSize - 1].x) + 2 * M_PI;
 
+  ROS_DEBUG("laserCloudHandler: %f, %f", startOri, endOri);
+
   if (endOri - startOri > 3 * M_PI) {
     endOri -= 2 * M_PI;
   } else if (endOri - startOri < M_PI) {
@@ -183,6 +185,10 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
   int count = cloudSize;
   PointType point;
   std::vector<pcl::PointCloud<PointType> > laserCloudScans(N_SCANS);
+
+
+
+
   for (int i = 0; i < cloudSize; i++) {
     point.x = laserCloudIn.points[i].y;
     point.y = laserCloudIn.points[i].z;
@@ -190,7 +196,8 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
 
     float angle = atan(point.y / sqrt(point.x * point.x + point.z * point.z)) * 180 / M_PI;
     int scanID;
-    int roundedAngle = int(angle + (angle<0.0?-0.5:+0.5)); 
+    angle = (angle+15) / 2; //VLP16 - 2 degrees per laser, -15:15
+    int roundedAngle = int(angle + 0.5); 
     if (roundedAngle > 0){
       scanID = roundedAngle;
     }
@@ -201,6 +208,8 @@ void laserCloudHandler(const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg)
       count--;
       continue;
     }
+
+    //ROS_DEBUG("angle: %d -> %d", roundedAngle, scanID);
 
     float ori = -atan2(point.x, point.z);
     if (!halfPassed) {
